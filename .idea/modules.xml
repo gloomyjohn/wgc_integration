@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/wgc.iml" filepath="$PROJECT_DIR$/.idea/wgc.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/wgc_integration.iml" filepath="$PROJECT_DIR$/.idea/wgc_integration.iml" />
     </modules>
   </component>
 </project>
