@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  # Python 匹配引擎 (FastAPI)
+  python-engine:
+    build: ./wgc-python  # 指向包含 matching_algorithm.py 和 Dockerfile 的文件夹
+    container_name: python-engine
+    ports:
+      - "8000:8000"
+    networks:
+      - wgc-network
+
+  # Java Spring Boot 后端
+  java-backend:
+    build: ./wgc-backend    # 指向你的 Spring Boot 项目根目录 (包含 Dockerfile)
+    container_name: java-backend
+    ports:
+      - "8080:8080"
+    depends_on:
+      - python-engine
+      - db
+      - redis
+      - rabbitmq
+    environment:
+      # 注意：变量名必须是全大写且用下划线代替点
+#      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/wgc_db
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/wgc_db
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=root
+#      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_RABBITMQ_HOST=rabbitmq
+#      - SPRING_RABBITMQ_HOST=host.docker.internal  # 修改这里，指向宿主机
+      - SPRING_DATA_REDIS_HOST=host.docker.internal # 如果 Redis 也在宿主机，一并修改
+      # 传入 Python 引擎的内部访问地址
+      - PYTHON_ENGINE_URL=http://python-engine:8000
+    networks:
+      - wgc-network
+
+  # PostgreSQL 数据库
+  db:
+    image: postgres:15
+    container_name: wgc-db
+    environment:
+      POSTGRES_DB: wgc_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - wgc-network
+
+  # Redis 缓存
+  redis:
+    image: redis:latest
+    container_name: wgc-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - wgc-network
+
+  # RabbitMQ 消息队列
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: wgc-mq
+    ports:
+      - "5672:5672"
+      - "15672:15672" # 管理界面
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - wgc-network
+
+networks:
+  wgc-network:
+    driver: bridge
+
+volumes:
+  db_data:
