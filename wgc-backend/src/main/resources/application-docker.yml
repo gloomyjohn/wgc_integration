@@ -1,0 +1,61 @@
+spring:
+  application:
+    name: wgc-backend
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://db:5432/wgc_db}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:root}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:redis}
+      port: 6379
+      timeout: 2000ms
+      jedis:
+        pool:
+          max-active: 20
+          max-idle: 10
+          min-idle: 5
+  rabbitmq:
+    host: ${SPRING_RABBITMQ_HOST:rabbitmq}
+    port: 5672
+    username: guest
+    password: guest
+    virtual-host: /
+    connection-timeout: 5000
+
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    context-path: /
+  compression:
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus,env,beans
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+  health:
+    livenessState:
+      enabled: true
+    readinessState:
+      enabled: true
+    db:
+      enabled: true
+
+logging:
+  level:
+    root: INFO
+    com.jjy.wgcbackend: DEBUG
+  pattern:
+    console: "[%d{yyyy-MM-dd HH:mm:ss}] [%thread] [%-5level] [%logger{36}] %msg%n"

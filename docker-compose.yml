@@ -1,56 +1,89 @@
 version: '3.8'
 
 services:
+  # ========================= API 网关（核心入口）=========================
   gateway:
-    image: nginx:alpine
-    container_name: wgc-gateway
+    build:
+      context: ./wgc-python
+      dockerfile: Dockerfile
+    container_name: api-gateway
     ports:
-      - "8081:80"  # ngrok 将监听这个 80 端口
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - "9000:9000"  # Ngrok 暴露这个端口
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: python gateway.py 9000 0.0.0.0
     depends_on:
-      - java-backend
-      - python-engine
+      python-engine:
+        condition: service_healthy
+      java-backend:
+        condition: service_healthy
     networks:
       - wgc-network
-  # Python 匹配引擎 (FastAPI)
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # ========================= Python 匹配引擎 (FastAPI) =========================
   python-engine:
-    build: ./wgc-python  # 指向包含 matching_algorithm.py 和 Dockerfile 的文件夹
+    build: ./wgc-python
     container_name: python-engine
     ports:
       - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: python matching_algorithm.py 8000 0.0.0.0
     networks:
       - wgc-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
 
-  # Java Spring Boot 后端
+  # ========================= Java Spring Boot 后端 =========================
   java-backend:
-    build: ./wgc-backend    # 指向你的 Spring Boot 项目根目录 (包含 Dockerfile)
+    build: ./wgc-backend
     container_name: java-backend
     ports:
       - "8080:8080"
-    depends_on:
-      - python-engine
-      - db
-      - redis
-      - rabbitmq
     environment:
-      # 注意：变量名必须是全大写且用下划线代替点
-#      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/wgc_db
+      - PYTHONUNBUFFERED=1
+      - SPRING_PROFILES_ACTIVE=docker
+      - SERVER_PORT=8080
+      # 连接到本地（宿主机）的数据库
+      # Windows/Mac 用户可以用 host.docker.internal
+      # Linux 用户需要改为实际的宿主机 IP 或 172.17.0.1
       - SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/wgc_db
       - SPRING_DATASOURCE_USERNAME=postgres
       - SPRING_DATASOURCE_PASSWORD=root
-#      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_HOST=redis
       - SPRING_RABBITMQ_HOST=rabbitmq
-#      - SPRING_RABBITMQ_HOST=host.docker.internal  # 修改这里，指向宿主机
-      - SPRING_DATA_REDIS_HOST=host.docker.internal # 如果 Redis 也在宿主机，一并修改
-      # 传入 Python 引擎的内部访问地址
-      - PYTHON_ENGINE_URL=http://python-engine:8000
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,metrics
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
     networks:
       - wgc-network
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
 
-  # PostgreSQL 数据库
+  # ========================= PostgreSQL 数据库 =========================
   db:
-    image: postgres:15
+    image: postgres:15-alpine
     container_name: wgc-db
     environment:
       POSTGRES_DB: wgc_db
@@ -62,28 +95,46 @@ services:
       - db_data:/var/lib/postgresql/data
     networks:
       - wgc-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
-  # Redis 缓存
+  # ========================= Redis 缓存 =========================
   redis:
-    image: redis:latest
+    image: redis:7-alpine
     container_name: wgc-redis
     ports:
       - "6379:6379"
     networks:
       - wgc-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
-  # RabbitMQ 消息队列
+  # ========================= RabbitMQ 消息队列 =========================
   rabbitmq:
-    image: rabbitmq:3-management
+    image: rabbitmq:3.12-management-alpine
     container_name: wgc-mq
     ports:
-      - "5672:5672"
-      - "15672:15672" # 管理界面
+      - "5672:5672"      # AMQP 端口
+      - "15672:15672"    # 管理界面
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
     networks:
       - wgc-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
 
 networks:
   wgc-network:

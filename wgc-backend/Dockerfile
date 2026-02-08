@@ -1,26 +1,30 @@
-# 第一阶段：构建阶段
-FROM maven:3.8.4-openjdk-17 AS build
+# Spring Boot 构建和运行 - 多阶段 Dockerfile
+
+# ========================= 第一阶段：构建 =========================
+FROM maven:3.9-eclipse-temurin-17 AS build
 WORKDIR /app
 COPY pom.xml .
-RUN mvn dependency:go-offline
+RUN mvn dependency:go-offline -q
 COPY src ./src
-RUN mvn clean package -DskipTests
+RUN mvn clean package -DskipTests -q
 
-# 第二阶段：运行阶段 (修改这里)
-# 使用 Eclipse Temurin 提供的 JDK 17，更稳定且体积依然很小
+# ========================= 第二阶段：运行 =========================
 FROM eclipse-temurin:17-jre-alpine
+
 WORKDIR /app
+
+# 安装健康检查所需的工具
+RUN apk add --no-cache curl
+
+# 从构建阶段复制编译好的 JAR
 COPY --from=build /app/target/*.jar app.jar
-EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
 
-# 3. 从构建阶段复制打包好的 jar 文件
-# 注意：请确认你的 pom.xml 生成的 jar 包名称是否为 wgc-backend.jar
-COPY --from=build /app/target/*.jar app.jar
-
-# 4. 暴露我们在 application.properties 里定义的端口
+# 暴露端口
 EXPOSE 8080
 
-# 5. 启动 Java 应用
-# 使用 -D 选项可以确保环境变量能正确覆盖 properties 中的 localhost
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# 健康检查
+HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=30s \
+    CMD curl -f http://localhost:8080/actuator/health || exit 1
+
+# 启动应用
+ENTRYPOINT ["java", "-Dserver.port=8080", "-jar", "app.jar"]
