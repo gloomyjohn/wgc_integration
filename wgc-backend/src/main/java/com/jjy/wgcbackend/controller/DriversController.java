@@ -3,12 +3,15 @@ package com.jjy.wgcbackend.controller;
 import com.jjy.wgcbackend.common.Result;
 import com.jjy.wgcbackend.entitiy.dto.DriverDto;
 import com.jjy.wgcbackend.entitiy.dto.DriverLocationDTO;
+import com.jjy.wgcbackend.entitiy.dto.NodeDTO;
 import com.jjy.wgcbackend.entitiy.po.Drivers;
+import com.jjy.wgcbackend.mapper.NodesMapper;
 import com.jjy.wgcbackend.service.IDriversService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+import org.w3c.dom.Node;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -31,6 +34,8 @@ public class DriversController {
     private static final Logger log = LoggerFactory.getLogger(DriversController.class);
     @Autowired
     private IDriversService driversService;
+    @Autowired
+    private NodesMapper nodesMapper;
 
     // driver增删查改
     @PostMapping("/add")
@@ -81,8 +86,16 @@ public class DriversController {
     public Result requestPassenger(@RequestBody DriverLocationDTO driverLocationDTO){
         // todo
         // 在司机位置周围随机生成一个乘客坐标
-        double[] passengerLocation = new double[]{driverLocationDTO.getLatitude() + Math.random() * 0.01, driverLocationDTO.getLongitude() + Math.random() * 0.01};
-        return Result.success(passengerLocation);
+        // double[] passengerLocation = new double[]{driverLocationDTO.getLatitude() + Math.random() * 0.01, driverLocationDTO.getLongitude() + Math.random() * 0.01};
+        double driverLat = driverLocationDTO.getLatitude();
+        double driverLng = driverLocationDTO.getLongitude();
+// 核心逻辑：在司机周边 2000 米（2公里）的真实路网范围内，随机抽取 5 个真实的坐标点
+        List<NodeDTO> passengerLocations = nodesMapper.getRandomNearbyNodes(driverLng, driverLat, 2000.0, 5);
+        if(passengerLocations.isEmpty()){
+            return Result.fail("司机所在区域2公里内无可用位置");
+        }
+        log.info(passengerLocations.toString());
+        return Result.success(passengerLocations);
 
 //        return driversService.requestPassenger(driverLocationDTO) ? Result.success("request passenger success") : Result.fail("request passenger failed");
     }
@@ -90,17 +103,33 @@ public class DriversController {
     // 生成竞争司机坐标
     @PostMapping("/requestRivalDrivers")
     public Result requestRivalDriver(@RequestBody DriverLocationDTO driverLocationDTO){
-        log.info("driverLocationDTO:{}", driverLocationDTO);
-        // todo
-        // 在司机位置附近随机生成三个乘客坐标
+        log.info("接收到主司机坐标，准备在真实路网上生成竞争车: {}", driverLocationDTO);
+
+        double driverLng = driverLocationDTO.getLongitude();
+        double driverLat = driverLocationDTO.getLatitude();
+
+        // 核心逻辑：在主司机周围 3000 米（3公里）的真实路网范围内，随机抽取 3 个真实坐标点
+        // (竞争车可以比乘客稍微分散一点，所以这里用了 3000 米，你可以根据演示效果自由调整)
+        List<NodeDTO> rivalNodes = nodesMapper.getRandomNearbyNodes(driverLng, driverLat, 3000.0, 3);
+
+        if (rivalNodes.isEmpty()) {
+            return Result.fail("该司机所在区域 3 公里内没有找到可用的路网节点");
+        }
+
+        // 将查询到的真实节点转换为前端原本期望的 JSON 格式
         List<Map<String, Object>> rivalDrivers = new ArrayList<>();
-        for (int i = 1; i <= 3; i++) {
+        for (int i = 0; i < rivalNodes.size(); i++) {
+            NodeDTO node = rivalNodes.get(i);
             Map<String, Object> driver = new HashMap<>();
-            driver.put("id", i);
-            driver.put("latitude", driverLocationDTO.getLatitude() + (Math.random() - 0.5) * 0.03);
-            driver.put("longitude", driverLocationDTO.getLongitude() + (Math.random() - 0.5) * 0.03);
+
+            driver.put("id", i + 1); // 保持和原来一样的 id (1, 2, 3)
+            driver.put("latitude", node.getLat());   // 填入真实的纬度
+            driver.put("longitude", node.getLng());  // 填入真实的经度
+            driver.put("nodeId", node.getNodeId());  // 附加真实的节点 ID，前端以后也许用得上
+
             rivalDrivers.add(driver);
         }
+
         return Result.success(rivalDrivers);
     }
 
