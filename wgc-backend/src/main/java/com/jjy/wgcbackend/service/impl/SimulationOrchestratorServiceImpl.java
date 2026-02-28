@@ -39,7 +39,7 @@ public class SimulationOrchestratorServiceImpl implements ISimulationOrchestrato
         //
         RideRequests rideRequests = new RideRequests();
         rideRequests.setRequestTime(LocalDateTime.now());
-        rideRequests.setStatus("WATTING");
+        rideRequests.setStatus("WAITING");
         rideRequestsService.save(rideRequests);
         log.info("√ 订单入库成功，订单号：{}", rideRequests.getRequestId());
 
@@ -52,7 +52,7 @@ public class SimulationOrchestratorServiceImpl implements ISimulationOrchestrato
         pythonRequest.put("drivers", drivers);
 
         Map<String , double[]> passengers = new HashMap<>();
-        passengers.put("passenger1", new double[]{passengerLat});
+        passengers.put("passenger1", new double[]{passengerLat, passengerLng});
         pythonRequest.put("passengers", passengers);
 
         pythonRequest.put("k", 20);
@@ -64,14 +64,14 @@ public class SimulationOrchestratorServiceImpl implements ISimulationOrchestrato
 
             // 匹配成功，解析结果
             Map<String, String> matches = (Map<String, String>) pythonResponse.get("matches");
-            String matchedPassengers = matches.get("driver_1");
+            String matchedPassengers = matches.get("driver1");
 
             if (matchedPassengers != null) {
                 // update status
                 rideRequests.setStatus("MATCHED");
                 rideRequests.setMatchedDriverId(1L);// 假定司机id为1
                 rideRequests.setMatchedAt(LocalDateTime.now());
-                rideRequestsService.save(rideRequests);
+                rideRequestsService.updateById(rideRequests);
 
                 // 生成路径规划
                 double[] dLoc = new double[]{driverLat, driverLng};

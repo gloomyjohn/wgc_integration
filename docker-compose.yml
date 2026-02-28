@@ -83,7 +83,8 @@ services:
 
   # ========================= PostgreSQL 数据库 =========================
   db:
-    image: postgres:15-alpine
+    image: pgrouting/pgrouting:15-3.5-3.8
+#    image: postgis/postgis:15-3.3-alpine
     container_name: wgc-db
     environment:
       POSTGRES_DB: wgc_db
