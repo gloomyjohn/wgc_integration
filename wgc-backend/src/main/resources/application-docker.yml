@@ -27,6 +27,14 @@ spring:
     password: guest
     virtual-host: /
     connection-timeout: 5000
+    listener:
+      simple:
+        retry:
+          enabled: true           # 【关键】开启消费者失败重试机制
+          max-attempts: 3         # 最大重试次数（包含第一次运行，也就是失败后再试 2 次）
+          initial-interval: 2000ms # 第一次重试前，先等 2 秒（别立刻重试把系统搞崩）
+          max-interval: 10000ms    # 重试间隔最长不超过 10 秒
+          multiplier: 2.0          # 下一次等待时间是上一次的 2 倍（2秒 -> 4秒）
 
 server:
   port: ${SERVER_PORT:8080}
@@ -56,6 +64,6 @@ management:
 logging:
   level:
     root: INFO
-    com.jjy.wgcbackend: DEBUG
+    com.jjy.wgcbackend: INFO
   pattern:
     console: "[%d{yyyy-MM-dd HH:mm:ss}] [%thread] [%-5level] [%logger{36}] %msg%n"

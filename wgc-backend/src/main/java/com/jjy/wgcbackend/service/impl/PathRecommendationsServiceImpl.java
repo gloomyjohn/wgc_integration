@@ -2,14 +2,17 @@ package com.jjy.wgcbackend.service.impl;
 
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.jjy.wgcbackend.entitiy.dto.FlowFieldRouteResultDTO;
 import com.jjy.wgcbackend.entitiy.po.PathRecommendations;
 import com.jjy.wgcbackend.entitiy.vo.PathRecommendationsVO;
 import com.jjy.wgcbackend.mapper.PathRecommendationsMapper;
+import com.jjy.wgcbackend.service.IFlowFieldService;
 import com.jjy.wgcbackend.service.IPathRecommendationsService;
-import org.springframework.cache.annotation.Cacheable;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -24,6 +27,9 @@ import java.util.List;
 
 public class PathRecommendationsServiceImpl extends ServiceImpl<PathRecommendationsMapper, PathRecommendations> implements IPathRecommendationsService {
 
+    @Autowired
+    private IFlowFieldService flowFieldService;
+
 //
 //    @Override
 //    public List getRecommendedPath(Long driverId, String currentLocation, String destination) {
@@ -34,11 +40,6 @@ public class PathRecommendationsServiceImpl extends ServiceImpl<PathRecommendati
 //    }
 
     @Override
-    @Cacheable(
-            value = "recommended_paths",
-            key = "#driverLocation[0] + ',' + #driverLocation[1] + '-' + #passengerLocation[0] + ',' + #passengerLocation[1]",
-            unless = "#result == null"
-    )
     public PathRecommendationsVO getRecommendedPath(double[] driverLocation, double[] passengerLocation) {
 //        PathRecommendationsVO pathRecommendationsVO = new PathRecommendationsVO();
 //        List<double []> bluePath = Arrays.asList(new double[][]{{1,2},{3,4},{5,6},{7,8},{9,10}});
@@ -49,22 +50,20 @@ public class PathRecommendationsServiceImpl extends ServiceImpl<PathRecommendati
 //        pathRecommendationsVO.setRedSnappedStarts(List.of(new double[]{1, 2}));
 //        return pathRecommendationsVO;
         System.out.println("⚡️ 缓存未命中，正在计算路径...");
+        FlowFieldRouteResultDTO route = flowFieldService.buildRouteToPassenger(driverLocation, passengerLocation);
+        if (route == null || route.getPathPoints() == null || route.getPathPoints().isEmpty()) {
+            return null;
+        }
+
         PathRecommendationsVO vo = new PathRecommendationsVO();
 
         // 1. 设置蓝色路径
-        List<double[]> bluePath = List.of(
-                new double[]{-122.402, 37.79},
-                new double[]{-122.401, 37.791}
-        );
-        vo.setBluePath(bluePath);
-        vo.setBlueSnappedStart(bluePath.get(0));
+        vo.setBluePath(route.getPathPoints());
+        vo.setBlueSnappedStart(route.getSnappedDriverStart());
 
         // 2. 设置红色路径（多个竞争对手）
-        List<List<double[]>> redPaths = new ArrayList<>();
-        redPaths.add(List.of(new double[]{-122.41, 37.8}, new double[]{-122.40, 37.79}));
-
-        vo.setRedPaths(redPaths);
-        vo.setRedSnappedStarts(List.of(new double[]{-122.41, 37.8}));
+        vo.setRedPaths(new ArrayList<>());
+        vo.setRedSnappedStarts(Collections.emptyList());
 
         return vo;
 
