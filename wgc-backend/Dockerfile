@@ -4,7 +4,11 @@
 FROM maven:3.9-eclipse-temurin-17 AS build
 WORKDIR /app
 COPY pom.xml .
-RUN mvn dependency:go-offline -q
+# 复制 Maven 配置文件（指定阿里云镜像）
+COPY maven/settings.xml /root/.m2/settings.xml
+
+# 执行下载依赖（顺便去掉 -q，先看看详细输出，确认没问题后再加回 -q）
+RUN mvn dependency:go-offline -B
 COPY src ./src
 RUN mvn clean package -DskipTests -q
 

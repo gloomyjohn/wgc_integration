@@ -1,0 +1,1461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flow Field Simulation Viewer</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --bg: #f2f6fc;
+            --panel: rgba(255, 255, 255, 0.95);
+            --panel-strong: #ffffff;
+            --panel-dark: #07111e;
+            --text: #102235;
+            --muted: #5a6d82;
+            --border: #d9e2ef;
+            --accent: #0f766e;
+            --accent-2: #0284c7;
+            --danger: #b42318;
+            --ok: #166534;
+            --idle: #7dd3fc;
+            --matched: #fb7185;
+            --passenger: #fde047;
+            --vector: #22d3ee;
+            --shadow: 0 20px 44px rgba(15, 23, 42, 0.09);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at top left, rgba(34, 211, 238, 0.18), transparent 28%),
+                radial-gradient(circle at top right, rgba(15, 118, 110, 0.16), transparent 24%),
+                linear-gradient(180deg, #fbfdff 0%, var(--bg) 100%);
+        }
+
+        .page {
+            width: min(1480px, calc(100vw - 28px));
+            margin: 18px auto 34px;
+        }
+
+        .hero {
+            padding: 28px 30px;
+            border-radius: 26px;
+            border: 1px solid rgba(217, 226, 239, 0.84);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(237, 246, 255, 0.96));
+            box-shadow: var(--shadow);
+        }
+
+        .hero h1 {
+            margin: 0 0 10px;
+            font-size: 34px;
+            line-height: 1.05;
+        }
+
+        .hero p {
+            margin: 0;
+            max-width: 900px;
+            color: var(--muted);
+            line-height: 1.65;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: minmax(360px, 430px) minmax(0, 1fr);
+            gap: 18px;
+            margin-top: 18px;
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 22px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+        }
+
+        .panel-header {
+            padding: 18px 20px 12px;
+            border-bottom: 1px solid rgba(217, 226, 239, 0.82);
+        }
+
+        .panel-header h2 {
+            margin: 0;
+            font-size: 19px;
+        }
+
+        .panel-header p {
+            margin: 8px 0 0;
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .panel-body {
+            padding: 18px 20px 20px;
+        }
+
+        .stack {
+            display: grid;
+            gap: 14px;
+        }
+
+        .field {
+            display: grid;
+            gap: 8px;
+        }
+
+        .field label {
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .field input,
+        .field textarea {
+            width: 100%;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 12px 14px;
+            font: inherit;
+            color: var(--text);
+            background: #fbfdff;
+        }
+
+        .field textarea {
+            min-height: 290px;
+            resize: vertical;
+            font-family: Consolas, "Courier New", monospace;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .quick-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .range-shell {
+            display: grid;
+            gap: 10px;
+            padding: 14px;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            background: linear-gradient(180deg, #ffffff, #f7fbff);
+        }
+
+        .range-shell strong {
+            font-size: 15px;
+        }
+
+        .range-shell span {
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .range-shell input[type="range"] {
+            width: 100%;
+            margin: 0;
+        }
+
+        .range-value {
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--accent);
+        }
+
+        .row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        button {
+            border: 0;
+            border-radius: 999px;
+            padding: 11px 16px;
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.14s ease, box-shadow 0.14s ease, opacity 0.14s ease;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+        }
+
+        button.primary {
+            background: linear-gradient(135deg, var(--accent), #0d9488);
+            color: #ffffff;
+            box-shadow: 0 10px 24px rgba(15, 118, 110, 0.24);
+        }
+
+        button.secondary {
+            background: linear-gradient(135deg, #0284c7, #38bdf8);
+            color: #ffffff;
+            box-shadow: 0 10px 24px rgba(14, 165, 233, 0.24);
+        }
+
+        button.ghost {
+            background: #edf4fb;
+            color: var(--text);
+        }
+
+        button.danger {
+            background: #fee4e2;
+            color: var(--danger);
+        }
+
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 700;
+            background: #edf7f6;
+            color: var(--ok);
+        }
+
+        .status.offline {
+            background: #fff1f2;
+            color: var(--danger);
+        }
+
+        .viewer-panel .panel-body {
+            padding-top: 16px;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .metric {
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 13px 15px;
+            background: linear-gradient(180deg, #ffffff, #f7fbff);
+        }
+
+        .metric .label {
+            font-size: 11px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .metric .value {
+            margin-top: 7px;
+            font-size: 25px;
+            font-weight: 800;
+        }
+
+        .viewer-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .badge-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 11px;
+            border-radius: 999px;
+            background: #eef5fb;
+            color: var(--text);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            display: inline-block;
+        }
+
+        .viewer-shell {
+            border-radius: 22px;
+            overflow: hidden;
+            border: 1px solid rgba(10, 26, 45, 0.08);
+            background: linear-gradient(180deg, rgba(4, 12, 24, 0.98), rgba(8, 17, 30, 0.98));
+        }
+
+        .viewer-meta {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(127, 161, 197, 0.12);
+            color: #dbeafe;
+            background: rgba(11, 23, 40, 0.88);
+        }
+
+        .viewer-meta strong {
+            font-size: 13px;
+        }
+
+        .viewer-meta span {
+            color: #90a9c3;
+            font-size: 12px;
+        }
+
+        .canvas-wrap {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16 / 10;
+            background:
+                radial-gradient(circle at top, rgba(34, 211, 238, 0.14), transparent 38%),
+                linear-gradient(180deg, rgba(9, 21, 37, 0.98), rgba(5, 12, 23, 0.98));
+        }
+
+        canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .canvas-overlay {
+            position: absolute;
+            left: 14px;
+            bottom: 14px;
+            right: 14px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            pointer-events: none;
+        }
+
+        .overlay-chip {
+            padding: 7px 10px;
+            border-radius: 999px;
+            color: #d7e8ff;
+            background: rgba(10, 20, 36, 0.7);
+            border: 1px solid rgba(113, 144, 178, 0.18);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .playback-row {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 16px;
+            border-top: 1px solid rgba(127, 161, 197, 0.12);
+            background: rgba(8, 17, 30, 0.96);
+        }
+
+        .toggle-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .toggle {
+            padding: 9px 12px;
+            border-radius: 999px;
+            background: rgba(25, 41, 63, 0.96);
+            color: #bcd1e6;
+            border: 1px solid rgba(104, 143, 179, 0.16);
+        }
+
+        .toggle.active {
+            background: rgba(17, 108, 132, 0.96);
+            color: #f0fdff;
+            border-color: rgba(34, 211, 238, 0.28);
+        }
+
+        .output-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .output-card h3 {
+            margin: 0 0 10px;
+            font-size: 15px;
+        }
+
+        pre {
+            margin: 0;
+            min-height: 240px;
+            max-height: 340px;
+            padding: 16px;
+            overflow: auto;
+            border-radius: 18px;
+            background: var(--panel-dark);
+            color: #d9e9ff;
+            font-family: Consolas, "Courier New", monospace;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .tips {
+            margin-top: 16px;
+            padding: 16px 18px;
+            border-radius: 18px;
+            border: 1px dashed var(--border);
+            background: rgba(255, 255, 255, 0.72);
+        }
+
+        .tips p {
+            margin: 0 0 8px;
+            font-weight: 800;
+        }
+
+        .tips ul {
+            margin: 0;
+            padding-left: 18px;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        @media (max-width: 1240px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .cards {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 760px) {
+            .page {
+                width: min(100vw - 18px, 1480px);
+                margin: 10px auto 24px;
+            }
+
+            .hero,
+            .panel-body,
+            .panel-header {
+                padding-left: 16px;
+                padding-right: 16px;
+            }
+
+            .cards {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .output-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .quick-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 520px) {
+            .cards {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="page">
+    <section class="hero">
+        <h1>Flow Field Simulation Viewer</h1>
+        <p>
+            This page can play preview frames returned by the backend and render live vehicle motion from
+            <code>/ws/simulation</code>. Start with <code>POST /preview</code> for a quick local animation, then
+            connect the WebSocket and use <code>POST /start</code> for streaming updates.
+        </p>
+    </section>
+
+    <section class="main-grid">
+        <div class="panel">
+            <div class="panel-header">
+                <h2>Request Controls</h2>
+                <p>Use the same page for HTTP testing, WebSocket testing and direct visual playback.</p>
+            </div>
+            <div class="panel-body">
+                <div class="stack">
+                    <div class="field">
+                        <label for="baseUrl">Base URL</label>
+                        <input id="baseUrl" value="http://localhost:8080">
+                    </div>
+
+                    <div class="field">
+                        <label for="wsUrl">WebSocket URL</label>
+                        <input id="wsUrl" value="ws://localhost:8080/ws/simulation">
+                    </div>
+
+                    <div class="row">
+                        <button id="connectWsBtn" class="secondary" type="button">Connect WS</button>
+                        <button id="disconnectWsBtn" class="ghost" type="button">Disconnect WS</button>
+                        <span id="wsStatus" class="status offline">WS offline</span>
+                    </div>
+
+                    <div class="quick-grid">
+                        <div class="range-shell">
+                            <strong>Vehicle count</strong>
+                            <span>Updates the request payload field <code>vehicleCount</code>.</span>
+                            <input id="vehicleCountControl" type="range" min="10" max="1000" step="10" value="220">
+                            <div id="vehicleCountValue" class="range-value">220</div>
+                        </div>
+                        <div class="range-shell">
+                            <strong>Vehicle speed</strong>
+                            <span>Updates the request payload field <code>vehicleSpeedKmh</code>.</span>
+                            <input id="vehicleSpeedControl" type="range" min="5" max="80" step="1" value="35">
+                            <div id="vehicleSpeedValue" class="range-value">35 km/h</div>
+                        </div>
+                        <div class="range-shell">
+                            <strong>Playback speed</strong>
+                            <span>Only changes the front-end animation speed for preview and live frames.</span>
+                            <input id="playbackSpeedControl" type="range" min="0.25" max="3" step="0.25" value="1">
+                            <div id="playbackSpeedValue" class="range-value">1.00x</div>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label for="payload">JSON Payload</label>
+                        <textarea id="payload">{
+  "vehicleCount": 220,
+  "vehicleSpeedKmh": 35,
+  "occupiedSpeedRatio": 0.55,
+  "tickSeconds": 1.0,
+  "totalFrames": 48,
+  "frameIntervalMs": 120,
+  "attractionStrength": 1.5,
+  "fieldSpreadMeters": 120,
+  "maxMatchDistanceMeters": 60,
+  "matchedHoldSeconds": 45,
+  "syntheticPassengerCount": 12,
+  "useDatabasePassengers": false,
+  "broadcast": true,
+  "includeVectorField": true,
+  "vectorSampleStep": 20,
+  "previewFrames": 10
+}</textarea>
+                    </div>
+
+                    <div class="row">
+                        <button id="previewBtn" class="ghost" type="button">POST /preview</button>
+                        <button id="startBtn" class="primary" type="button">POST /start</button>
+                        <button id="statusBtn" class="ghost" type="button">GET /status</button>
+                        <button id="stopBtn" class="danger" type="button">POST /stop</button>
+                    </div>
+
+                    <div class="tips">
+                        <p>Recommended sequence</p>
+                        <ul>
+                            <li>Click <strong>POST /preview</strong> first. The viewer will autoplay the returned frames.</li>
+                            <li>Then click <strong>Connect WS</strong> and use <strong>POST /start</strong> for streaming playback.</li>
+                            <li>If the page feels heavy, increase <code>vectorSampleStep</code> or set <code>includeVectorField</code> to <code>false</code>.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel viewer-panel">
+            <div class="panel-header">
+                <h2>Live Viewer</h2>
+                <p>Vehicles are interpolated between frames. Preview playback and live WebSocket frames use the same stage.</p>
+            </div>
+            <div class="panel-body">
+                <div class="cards">
+                    <div class="metric">
+                        <div class="label">Simulation</div>
+                        <div id="metricSimulationId" class="value">-</div>
+                    </div>
+                    <div class="metric">
+                        <div class="label">Frame</div>
+                        <div id="metricFrame" class="value">0</div>
+                    </div>
+                    <div class="metric">
+                        <div class="label">Vehicles</div>
+                        <div id="metricVehicles" class="value">0</div>
+                    </div>
+                    <div class="metric">
+                        <div class="label">Matched</div>
+                        <div id="metricMatched" class="value">0</div>
+                    </div>
+                    <div class="metric">
+                        <div class="label">Passengers</div>
+                        <div id="metricPassengers" class="value">0</div>
+                    </div>
+                    <div class="metric">
+                        <div class="label">Vectors</div>
+                        <div id="metricVectors" class="value">0</div>
+                    </div>
+                </div>
+
+                <div class="viewer-toolbar">
+                    <div class="badge-row">
+                        <span class="badge" id="viewerModeBadge">Idle</span>
+                        <span class="badge"><span class="legend-dot" style="background: var(--idle)"></span>Idle vehicle</span>
+                        <span class="badge"><span class="legend-dot" style="background: var(--matched)"></span>Matched vehicle</span>
+                        <span class="badge"><span class="legend-dot" style="background: var(--passenger)"></span>Passenger</span>
+                        <span class="badge"><span class="legend-dot" style="background: var(--vector)"></span>Flow vector</span>
+                    </div>
+                </div>
+
+                <div class="viewer-shell">
+                    <div class="viewer-meta">
+                        <div>
+                            <strong id="viewerHeadline">No frame loaded</strong>
+                            <span id="viewerSubline">Run preview or start WebSocket streaming.</span>
+                        </div>
+                        <div>
+                            <strong id="viewerPlaybackInfo">Playback idle</strong>
+                            <span id="viewerBoundsInfo">Bounds unavailable</span>
+                        </div>
+                    </div>
+
+                    <div class="canvas-wrap" id="canvasWrap">
+                        <canvas id="simCanvas"></canvas>
+                        <div class="canvas-overlay">
+                            <span class="overlay-chip" id="overlayVehicleInfo">Vehicles: 0</span>
+                            <span class="overlay-chip" id="overlayPassengerInfo">Passengers: 0</span>
+                            <span class="overlay-chip" id="overlayVectorInfo">Vectors: 0</span>
+                            <span class="overlay-chip" id="overlayModeInfo">Mode: idle</span>
+                        </div>
+                    </div>
+
+                    <div class="playback-row">
+                        <div class="row">
+                            <button id="playPreviewBtn" class="secondary" type="button">Play Preview</button>
+                            <button id="pausePreviewBtn" class="ghost" type="button">Pause Preview</button>
+                            <button id="resetPreviewBtn" class="ghost" type="button">Reset Preview</button>
+                            <button id="clearLogsBtn" class="ghost" type="button">Clear Logs</button>
+                        </div>
+                        <div class="toggle-row">
+                            <button id="toggleVectorsBtn" class="toggle active" type="button">Show Vectors</button>
+                            <button id="togglePassengersBtn" class="toggle active" type="button">Show Passengers</button>
+                            <button id="toggleGridBtn" class="toggle active" type="button">Show Grid</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="output-grid">
+                    <div class="output-card">
+                        <h3>HTTP Summary</h3>
+                        <pre id="httpOutput">No request sent yet.</pre>
+                    </div>
+                    <div class="output-card">
+                        <h3>WebSocket Log</h3>
+                        <pre id="wsOutput">No WebSocket message yet.</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+<script>
+    const MAX_WS_ENTRIES = 60;
+    const MAX_VECTORS_TO_DRAW = 700;
+    const PREVIEW_PLAYBACK_MS = 340;
+
+    const elements = {
+        baseUrl: document.getElementById("baseUrl"),
+        wsUrl: document.getElementById("wsUrl"),
+        payload: document.getElementById("payload"),
+        vehicleCountControl: document.getElementById("vehicleCountControl"),
+        vehicleCountValue: document.getElementById("vehicleCountValue"),
+        vehicleSpeedControl: document.getElementById("vehicleSpeedControl"),
+        vehicleSpeedValue: document.getElementById("vehicleSpeedValue"),
+        playbackSpeedControl: document.getElementById("playbackSpeedControl"),
+        playbackSpeedValue: document.getElementById("playbackSpeedValue"),
+        httpOutput: document.getElementById("httpOutput"),
+        wsOutput: document.getElementById("wsOutput"),
+        wsStatus: document.getElementById("wsStatus"),
+        metricSimulationId: document.getElementById("metricSimulationId"),
+        metricFrame: document.getElementById("metricFrame"),
+        metricVehicles: document.getElementById("metricVehicles"),
+        metricMatched: document.getElementById("metricMatched"),
+        metricPassengers: document.getElementById("metricPassengers"),
+        metricVectors: document.getElementById("metricVectors"),
+        connectWsBtn: document.getElementById("connectWsBtn"),
+        disconnectWsBtn: document.getElementById("disconnectWsBtn"),
+        previewBtn: document.getElementById("previewBtn"),
+        startBtn: document.getElementById("startBtn"),
+        statusBtn: document.getElementById("statusBtn"),
+        stopBtn: document.getElementById("stopBtn"),
+        playPreviewBtn: document.getElementById("playPreviewBtn"),
+        pausePreviewBtn: document.getElementById("pausePreviewBtn"),
+        resetPreviewBtn: document.getElementById("resetPreviewBtn"),
+        clearLogsBtn: document.getElementById("clearLogsBtn"),
+        toggleVectorsBtn: document.getElementById("toggleVectorsBtn"),
+        togglePassengersBtn: document.getElementById("togglePassengersBtn"),
+        toggleGridBtn: document.getElementById("toggleGridBtn"),
+        viewerModeBadge: document.getElementById("viewerModeBadge"),
+        viewerHeadline: document.getElementById("viewerHeadline"),
+        viewerSubline: document.getElementById("viewerSubline"),
+        viewerPlaybackInfo: document.getElementById("viewerPlaybackInfo"),
+        viewerBoundsInfo: document.getElementById("viewerBoundsInfo"),
+        overlayVehicleInfo: document.getElementById("overlayVehicleInfo"),
+        overlayPassengerInfo: document.getElementById("overlayPassengerInfo"),
+        overlayVectorInfo: document.getElementById("overlayVectorInfo"),
+        overlayModeInfo: document.getElementById("overlayModeInfo"),
+        canvasWrap: document.getElementById("canvasWrap"),
+        canvas: document.getElementById("simCanvas")
+    };
+
+    const canvasContext = elements.canvas.getContext("2d");
+    const state = {
+        ws: null,
+        wsEntries: [],
+        previewFrames: [],
+        previewIndex: 0,
+        previewTimer: null,
+        previewPlaying: false,
+        currentFrame: null,
+        previousFrame: null,
+        currentBounds: null,
+        currentMode: "idle",
+        transitionDurationMs: PREVIEW_PLAYBACK_MS,
+        transitionStartedAt: 0,
+        playbackSpeed: 1,
+        showVectors: true,
+        showPassengers: true,
+        showGrid: true
+    };
+
+    function setWsStatus(connected, text) {
+        elements.wsStatus.textContent = text;
+        elements.wsStatus.className = connected ? "status" : "status offline";
+    }
+
+    function safeJsonParse(text) {
+        try {
+            return JSON.parse(text);
+        } catch (error) {
+            throw new Error("Payload is not valid JSON: " + error.message);
+        }
+    }
+
+    function formatJson(data) {
+        return JSON.stringify(data, null, 2);
+    }
+
+    function clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    function setToggleState(button, active) {
+        button.classList.toggle("active", active);
+    }
+
+    function clearLogs() {
+        state.wsEntries = [];
+        elements.wsOutput.textContent = "Logs cleared.";
+        elements.httpOutput.textContent = "Logs cleared.";
+    }
+
+    function parsePayloadObject() {
+        return safeJsonParse(elements.payload.value);
+    }
+
+    function writePayloadObject(payloadObject) {
+        elements.payload.value = formatJson(payloadObject);
+    }
+
+    function setPayloadField(fieldName, value) {
+        const payloadObject = parsePayloadObject();
+        payloadObject[fieldName] = value;
+        writePayloadObject(payloadObject);
+        return payloadObject;
+    }
+
+    function syncVehicleSpeedControl() {
+        try {
+            const payloadObject = parsePayloadObject();
+            const speed = Number(payloadObject.vehicleSpeedKmh ?? 35);
+            const normalizedSpeed = clamp(speed, 5, 80);
+            elements.vehicleSpeedControl.value = String(normalizedSpeed);
+            elements.vehicleSpeedValue.textContent = normalizedSpeed.toFixed(0) + " km/h";
+        } catch {
+            elements.vehicleSpeedValue.textContent = "Invalid JSON";
+        }
+    }
+
+    function syncVehicleCountControl() {
+        try {
+            const payloadObject = parsePayloadObject();
+            const count = Number(payloadObject.vehicleCount ?? 220);
+            const normalizedCount = clamp(Math.round(count / 10) * 10, 10, 1000);
+            elements.vehicleCountControl.value = String(normalizedCount);
+            elements.vehicleCountValue.textContent = normalizedCount.toFixed(0);
+        } catch {
+            elements.vehicleCountValue.textContent = "Invalid JSON";
+        }
+    }
+
+    function setPlaybackSpeed(nextSpeed) {
+        state.playbackSpeed = clamp(Number(nextSpeed) || 1, 0.25, 3);
+        elements.playbackSpeedControl.value = String(state.playbackSpeed);
+        elements.playbackSpeedValue.textContent = state.playbackSpeed.toFixed(2) + "x";
+        updateViewerCopy(state.currentFrame);
+        if (state.previewPlaying) {
+            startPreviewPlayback();
+        }
+    }
+
+    function getPlaybackDuration(baseDurationMs) {
+        return Math.max(50, baseDurationMs / state.playbackSpeed);
+    }
+
+    function summarizeFrame(frame) {
+        if (!frame) {
+            return null;
+        }
+
+        const vehicles = frame.vehicles || [];
+        const matchedCount = vehicles.filter((vehicle) => vehicle.status === "matched").length;
+
+        return {
+            simulationId: frame.simulationId,
+            frameIndex: frame.frameIndex,
+            simTimeSeconds: frame.simTimeSeconds,
+            vehicles: vehicles.length,
+            matchedVehicles: matchedCount,
+            passengers: (frame.passengers || []).length,
+            vectors: (frame.vectors || []).length,
+            stats: frame.stats || null
+        };
+    }
+
+    function summarizePayload(payload) {
+        if (!payload) {
+            return { message: "No payload" };
+        }
+
+        if (payload.type === "FLOW_FIELD_SIMULATION_FRAME") {
+            return {
+                type: payload.type,
+                simulationId: payload.simulationId,
+                status: payload.status,
+                configuredFrames: payload.configuredFrames,
+                emittedFrames: payload.emittedFrames,
+                frame: summarizeFrame(payload.frame)
+            };
+        }
+
+        if (payload.latestFrame || payload.previewFrames || payload.effectiveConfig) {
+            return {
+                simulationId: payload.simulationId,
+                status: payload.status,
+                running: payload.running,
+                message: payload.message,
+                configuredFrames: payload.configuredFrames,
+                emittedFrames: payload.emittedFrames,
+                websocketPath: payload.websocketPath,
+                effectiveConfig: payload.effectiveConfig || null,
+                latestFrame: summarizeFrame(payload.latestFrame),
+                previewFrames: Array.isArray(payload.previewFrames)
+                    ? {
+                        frameCount: payload.previewFrames.length,
+                        firstFrame: summarizeFrame(payload.previewFrames[0]),
+                        lastFrame: summarizeFrame(payload.previewFrames[payload.previewFrames.length - 1])
+                    }
+                    : null
+            };
+        }
+
+        return payload;
+    }
+
+    function appendWsEntry(entry) {
+        state.wsEntries.unshift(entry);
+        if (state.wsEntries.length > MAX_WS_ENTRIES) {
+            state.wsEntries.length = MAX_WS_ENTRIES;
+        }
+        elements.wsOutput.textContent = state.wsEntries.map(formatJson).join("\n\n");
+    }
+
+    function collectPoints(frame) {
+        const points = [];
+        if (!frame) {
+            return points;
+        }
+
+        for (const vehicle of frame.vehicles || []) {
+            if (Number.isFinite(vehicle.lng) && Number.isFinite(vehicle.lat)) {
+                points.push([vehicle.lng, vehicle.lat]);
+            }
+        }
+
+        for (const passenger of frame.passengers || []) {
+            if (Number.isFinite(passenger.lng) && Number.isFinite(passenger.lat)) {
+                points.push([passenger.lng, passenger.lat]);
+            }
+        }
+
+        for (const vector of frame.vectors || []) {
+            if (Number.isFinite(vector.startLng) && Number.isFinite(vector.startLat)) {
+                points.push([vector.startLng, vector.startLat]);
+            }
+            if (Number.isFinite(vector.endLng) && Number.isFinite(vector.endLat)) {
+                points.push([vector.endLng, vector.endLat]);
+            }
+        }
+
+        return points;
+    }
+
+    function deriveBounds(frames) {
+        const points = [];
+        for (const frame of frames) {
+            points.push(...collectPoints(frame));
+        }
+
+        if (points.length === 0) {
+            return null;
+        }
+
+        let minLng = Infinity;
+        let maxLng = -Infinity;
+        let minLat = Infinity;
+        let maxLat = -Infinity;
+
+        for (const [lng, lat] of points) {
+            minLng = Math.min(minLng, lng);
+            maxLng = Math.max(maxLng, lng);
+            minLat = Math.min(minLat, lat);
+            maxLat = Math.max(maxLat, lat);
+        }
+
+        const lngRange = Math.max(maxLng - minLng, 1e-6);
+        const latRange = Math.max(maxLat - minLat, 1e-6);
+        const lngPadding = lngRange * 0.08;
+        const latPadding = latRange * 0.08;
+
+        return {
+            minLng: minLng - lngPadding,
+            maxLng: maxLng + lngPadding,
+            minLat: minLat - latPadding,
+            maxLat: maxLat + latPadding
+        };
+    }
+
+    function resizeCanvas() {
+        const ratio = window.devicePixelRatio || 1;
+        const width = elements.canvasWrap.clientWidth;
+        const height = elements.canvasWrap.clientHeight;
+
+        if (width === 0 || height === 0) {
+            return;
+        }
+
+        const nextWidth = Math.floor(width * ratio);
+        const nextHeight = Math.floor(height * ratio);
+        if (elements.canvas.width !== nextWidth || elements.canvas.height !== nextHeight) {
+            elements.canvas.width = nextWidth;
+            elements.canvas.height = nextHeight;
+            canvasContext.setTransform(ratio, 0, 0, ratio, 0, 0);
+        }
+    }
+
+    function projectPoint(lng, lat, bounds, width, height, padding) {
+        const drawableWidth = width - padding * 2;
+        const drawableHeight = height - padding * 2;
+        const lngSpan = Math.max(bounds.maxLng - bounds.minLng, 1e-9);
+        const latSpan = Math.max(bounds.maxLat - bounds.minLat, 1e-9);
+        const scale = Math.min(drawableWidth / lngSpan, drawableHeight / latSpan);
+        const contentWidth = lngSpan * scale;
+        const contentHeight = latSpan * scale;
+        const offsetX = (width - contentWidth) / 2;
+        const offsetY = (height - contentHeight) / 2;
+        const x = offsetX + (lng - bounds.minLng) * scale;
+        const y = height - (offsetY + (lat - bounds.minLat) * scale);
+        return { x, y, scale };
+    }
+
+    function buildVehicleLookup(frame) {
+        const map = new Map();
+        for (const vehicle of frame?.vehicles || []) {
+            map.set(vehicle.vehicleId, vehicle);
+        }
+        return map;
+    }
+
+    function interpolateVehicle(vehicle, previousMap, progress) {
+        const previous = previousMap.get(vehicle.vehicleId);
+        if (!previous) {
+            return vehicle;
+        }
+
+        return {
+            ...vehicle,
+            lng: previous.lng + (vehicle.lng - previous.lng) * progress,
+            lat: previous.lat + (vehicle.lat - previous.lat) * progress
+        };
+    }
+
+    function updateMetrics(frame) {
+        if (!frame) {
+            elements.metricSimulationId.textContent = "-";
+            elements.metricFrame.textContent = "0";
+            elements.metricVehicles.textContent = "0";
+            elements.metricMatched.textContent = "0";
+            elements.metricPassengers.textContent = "0";
+            elements.metricVectors.textContent = "0";
+            return;
+        }
+
+        const vehicles = frame.vehicles || [];
+        const matchedCount = vehicles.filter((vehicle) => vehicle.status === "matched").length;
+        elements.metricSimulationId.textContent = frame.simulationId || "-";
+        elements.metricFrame.textContent = String(frame.frameIndex ?? 0);
+        elements.metricVehicles.textContent = String(vehicles.length);
+        elements.metricMatched.textContent = String(matchedCount);
+        elements.metricPassengers.textContent = String((frame.passengers || []).length);
+        elements.metricVectors.textContent = String((frame.vectors || []).length);
+    }
+
+    function updateViewerCopy(frame) {
+        if (!frame) {
+            elements.viewerHeadline.textContent = "No frame loaded";
+            elements.viewerSubline.textContent = "Run preview or start WebSocket streaming.";
+            elements.viewerPlaybackInfo.textContent = "Playback idle";
+            elements.viewerBoundsInfo.textContent = "Bounds unavailable";
+            elements.overlayVehicleInfo.textContent = "Vehicles: 0";
+            elements.overlayPassengerInfo.textContent = "Passengers: 0";
+            elements.overlayVectorInfo.textContent = "Vectors: 0";
+            elements.overlayModeInfo.textContent = "Mode: idle";
+            return;
+        }
+
+        const vehicles = frame.vehicles || [];
+        const passengers = frame.passengers || [];
+        const vectors = frame.vectors || [];
+
+        elements.viewerHeadline.textContent = frame.simulationId
+            ? frame.simulationId + " | frame " + (frame.frameIndex ?? 0)
+            : "Frame " + (frame.frameIndex ?? 0);
+        elements.viewerSubline.textContent =
+            "Sim time " + Number(frame.simTimeSeconds || 0).toFixed(1) + " s | " +
+            vehicles.length + " vehicles | " +
+            passengers.length + " passengers";
+        elements.viewerPlaybackInfo.textContent =
+            "Mode " + state.currentMode + " | playback " + state.playbackSpeed.toFixed(2) + "x | preview frames " + state.previewFrames.length;
+        elements.viewerBoundsInfo.textContent = state.currentBounds
+            ? "Lng " + state.currentBounds.minLng.toFixed(2) + " to " + state.currentBounds.maxLng.toFixed(2) +
+              " | Lat " + state.currentBounds.minLat.toFixed(2) + " to " + state.currentBounds.maxLat.toFixed(2)
+            : "Bounds unavailable";
+        elements.overlayVehicleInfo.textContent = "Vehicles: " + vehicles.length;
+        elements.overlayPassengerInfo.textContent = "Passengers: " + passengers.length;
+        elements.overlayVectorInfo.textContent = "Vectors: " + vectors.length;
+        elements.overlayModeInfo.textContent = "Mode: " + state.currentMode;
+    }
+
+    function setViewerMode(modeLabel) {
+        state.currentMode = modeLabel;
+        elements.viewerModeBadge.textContent = modeLabel;
+    }
+
+    function pushFrame(frame, mode, bounds, transitionDurationMs) {
+        state.previousFrame = state.currentFrame;
+        state.currentFrame = frame;
+        state.currentBounds = bounds || state.currentBounds || deriveBounds([frame]);
+        state.transitionDurationMs = getPlaybackDuration(transitionDurationMs ?? PREVIEW_PLAYBACK_MS);
+        state.transitionStartedAt = performance.now();
+        setViewerMode(mode);
+        updateMetrics(frame);
+        updateViewerCopy(frame);
+    }
+
+    function loadPreviewFrames(previewFrames, autoplay) {
+        state.previewFrames = Array.isArray(previewFrames) ? previewFrames : [];
+        state.previewIndex = 0;
+        stopPreviewPlayback();
+
+        if (state.previewFrames.length === 0) {
+            return;
+        }
+
+        const bounds = deriveBounds(state.previewFrames);
+        pushFrame(state.previewFrames[0], "preview", bounds, PREVIEW_PLAYBACK_MS);
+        if (autoplay) {
+            startPreviewPlayback();
+        }
+    }
+
+    function startPreviewPlayback() {
+        if (state.previewFrames.length <= 1) {
+            return;
+        }
+        stopPreviewPlayback();
+        state.previewPlaying = true;
+        const intervalMs = getPlaybackDuration(PREVIEW_PLAYBACK_MS);
+        state.previewTimer = window.setInterval(() => {
+            state.previewIndex = (state.previewIndex + 1) % state.previewFrames.length;
+            pushFrame(state.previewFrames[state.previewIndex], "preview", state.currentBounds, PREVIEW_PLAYBACK_MS);
+        }, intervalMs);
+    }
+
+    function stopPreviewPlayback() {
+        state.previewPlaying = false;
+        if (state.previewTimer) {
+            clearInterval(state.previewTimer);
+            state.previewTimer = null;
+        }
+    }
+
+    function resetPreviewPlayback() {
+        stopPreviewPlayback();
+        state.previewIndex = 0;
+        if (state.previewFrames.length > 0) {
+            pushFrame(state.previewFrames[0], "preview", deriveBounds(state.previewFrames), PREVIEW_PLAYBACK_MS);
+        }
+    }
+
+    function handleFrame(frame, mode, transitionDurationMs) {
+        if (!frame) {
+            return;
+        }
+
+        if (mode === "live" && state.currentFrame?.simulationId !== frame.simulationId) {
+            state.currentBounds = deriveBounds([frame]);
+        }
+
+        if (mode === "preview" && state.previewFrames.length > 0) {
+            pushFrame(frame, mode, state.currentBounds || deriveBounds(state.previewFrames), transitionDurationMs);
+            return;
+        }
+
+        pushFrame(frame, mode, state.currentBounds || deriveBounds([frame]), transitionDurationMs);
+    }
+
+    function updateFromResponsePayload(payload) {
+        if (!payload) {
+            return;
+        }
+
+        if (Array.isArray(payload.previewFrames) && payload.previewFrames.length > 0) {
+            loadPreviewFrames(payload.previewFrames, true);
+            return;
+        }
+
+        if (payload.latestFrame) {
+            handleFrame(payload.latestFrame, "snapshot", 180);
+            return;
+        }
+
+        if (payload.frame) {
+            handleFrame(payload.frame, "live", 220);
+        }
+    }
+
+    async function request(path, method, includeBody) {
+        const baseUrl = elements.baseUrl.value.trim().replace(/\/+$/, "");
+        const url = baseUrl + path;
+        const options = { method, headers: {} };
+
+        if (includeBody) {
+            options.headers["Content-Type"] = "application/json";
+            options.body = formatJson(safeJsonParse(elements.payload.value));
+        }
+
+        elements.httpOutput.textContent = "Loading " + method + " " + url + "...";
+
+        const response = await fetch(url, options);
+        const text = await response.text();
+        let parsed;
+        try {
+            parsed = JSON.parse(text);
+        } catch {
+            parsed = { raw: text };
+        }
+
+        elements.httpOutput.textContent = formatJson({
+            status: response.status,
+            ok: response.ok,
+            url,
+            summary: summarizePayload(parsed.data || parsed)
+        });
+
+        updateFromResponsePayload(parsed.data || parsed);
+        return parsed;
+    }
+
+    function connectWs() {
+        disconnectWs();
+
+        const wsUrl = elements.wsUrl.value.trim();
+        state.ws = new WebSocket(wsUrl);
+        setWsStatus(false, "WS connecting");
+
+        state.ws.onopen = () => {
+            setWsStatus(true, "WS connected");
+            appendWsEntry({
+                type: "LOCAL_INFO",
+                message: "WebSocket connected",
+                wsUrl,
+                at: new Date().toISOString()
+            });
+        };
+
+        state.ws.onmessage = (event) => {
+            let payload;
+            try {
+                payload = JSON.parse(event.data);
+            } catch {
+                payload = { raw: event.data };
+            }
+
+            appendWsEntry(summarizePayload(payload));
+            if (payload.type === "FLOW_FIELD_SIMULATION_FRAME" && payload.frame) {
+                stopPreviewPlayback();
+                handleFrame(payload.frame, "live", 180);
+                return;
+            }
+
+            if (payload.latestFrame) {
+                stopPreviewPlayback();
+                handleFrame(payload.latestFrame, "live", 180);
+            }
+        };
+
+        state.ws.onerror = () => {
+            appendWsEntry({
+                type: "LOCAL_ERROR",
+                message: "WebSocket error",
+                at: new Date().toISOString()
+            });
+        };
+
+        state.ws.onclose = () => {
+            setWsStatus(false, "WS offline");
+            appendWsEntry({
+                type: "LOCAL_INFO",
+                message: "WebSocket closed",
+                at: new Date().toISOString()
+            });
+            state.ws = null;
+        };
+    }
+
+    function disconnectWs() {
+        if (state.ws) {
+            state.ws.close();
+            state.ws = null;
+        }
+        setWsStatus(false, "WS offline");
+    }
+
+    function drawScene() {
+        resizeCanvas();
+
+        const width = elements.canvas.width / (window.devicePixelRatio || 1);
+        const height = elements.canvas.height / (window.devicePixelRatio || 1);
+
+        canvasContext.clearRect(0, 0, width, height);
+
+        const gradient = canvasContext.createLinearGradient(0, 0, 0, height);
+        gradient.addColorStop(0, "#081425");
+        gradient.addColorStop(1, "#030914");
+        canvasContext.fillStyle = gradient;
+        canvasContext.fillRect(0, 0, width, height);
+
+        if (state.showGrid) {
+            canvasContext.strokeStyle = "rgba(111, 149, 183, 0.14)";
+            canvasContext.lineWidth = 1;
+            const gridStep = Math.max(60, Math.min(width, height) / 8);
+            for (let x = 0; x <= width; x += gridStep) {
+                canvasContext.beginPath();
+                canvasContext.moveTo(x, 0);
+                canvasContext.lineTo(x, height);
+                canvasContext.stroke();
+            }
+            for (let y = 0; y <= height; y += gridStep) {
+                canvasContext.beginPath();
+                canvasContext.moveTo(0, y);
+                canvasContext.lineTo(width, y);
+                canvasContext.stroke();
+            }
+        }
+
+        if (!state.currentFrame || !state.currentBounds) {
+            canvasContext.fillStyle = "rgba(222, 238, 255, 0.85)";
+            canvasContext.font = "600 26px Segoe UI";
+            canvasContext.fillText("No simulation frame loaded", 38, 60);
+            canvasContext.font = "15px Segoe UI";
+            canvasContext.fillStyle = "rgba(169, 191, 214, 0.9)";
+            canvasContext.fillText("Use preview or live streaming to populate this stage.", 38, 88);
+            requestAnimationFrame(drawScene);
+            return;
+        }
+
+        const padding = 36;
+        const now = performance.now();
+        const progress = clamp((now - state.transitionStartedAt) / Math.max(state.transitionDurationMs, 1), 0, 1);
+        const previousLookup =
+            state.previousFrame && state.previousFrame.simulationId === state.currentFrame.simulationId
+                ? buildVehicleLookup(state.previousFrame)
+                : new Map();
+
+        if (state.showVectors) {
+            const vectors = state.currentFrame.vectors || [];
+            const step = Math.max(1, Math.ceil(vectors.length / MAX_VECTORS_TO_DRAW));
+            for (let index = 0; index < vectors.length; index += step) {
+                const vector = vectors[index];
+                const start = projectPoint(
+                    vector.startLng,
+                    vector.startLat,
+                    state.currentBounds,
+                    width,
+                    height,
+                    padding
+                );
+                const end = projectPoint(
+                    vector.endLng,
+                    vector.endLat,
+                    state.currentBounds,
+                    width,
+                    height,
+                    padding
+                );
+                const strength = clamp((vector.strength || 0) / 2.4, 0.08, 1);
+                canvasContext.strokeStyle = "rgba(34, 211, 238," + (0.15 + strength * 0.42).toFixed(3) + ")";
+                canvasContext.lineWidth = 1 + strength * 1.7;
+                canvasContext.beginPath();
+                canvasContext.moveTo(start.x, start.y);
+                canvasContext.lineTo(end.x, end.y);
+                canvasContext.stroke();
+            }
+        }
+
+        if (state.showPassengers) {
+            for (const passenger of state.currentFrame.passengers || []) {
+                const point = projectPoint(
+                    passenger.lng,
+                    passenger.lat,
+                    state.currentBounds,
+                    width,
+                    height,
+                    padding
+                );
+                canvasContext.fillStyle = "rgba(253, 224, 71, 0.92)";
+                canvasContext.beginPath();
+                canvasContext.arc(point.x, point.y, 3.6, 0, Math.PI * 2);
+                canvasContext.fill();
+            }
+        }
+
+        const vehicles = state.currentFrame.vehicles || [];
+        for (const vehicle of vehicles) {
+            const animatedVehicle = interpolateVehicle(vehicle, previousLookup, progress);
+            const point = projectPoint(
+                animatedVehicle.lng,
+                animatedVehicle.lat,
+                state.currentBounds,
+                width,
+                height,
+                padding
+            );
+            const isMatched = vehicle.status === "matched";
+            canvasContext.fillStyle = isMatched ? "rgba(251, 113, 133, 0.92)" : "rgba(125, 211, 252, 0.92)";
+            canvasContext.beginPath();
+            canvasContext.arc(point.x, point.y, isMatched ? 3.1 : 2.7, 0, Math.PI * 2);
+            canvasContext.fill();
+        }
+
+        canvasContext.strokeStyle = "rgba(168, 194, 220, 0.18)";
+        canvasContext.lineWidth = 1;
+        canvasContext.strokeRect(padding - 10, padding - 10, width - padding * 2 + 20, height - padding * 2 + 20);
+
+        requestAnimationFrame(drawScene);
+    }
+
+    function boot() {
+        setToggleState(elements.toggleVectorsBtn, state.showVectors);
+        setToggleState(elements.togglePassengersBtn, state.showPassengers);
+        setToggleState(elements.toggleGridBtn, state.showGrid);
+        syncVehicleCountControl();
+        syncVehicleSpeedControl();
+        setPlaybackSpeed(Number(elements.playbackSpeedControl.value));
+        updateMetrics(null);
+        updateViewerCopy(null);
+        setViewerMode("idle");
+
+        const resizeObserver = new ResizeObserver(() => resizeCanvas());
+        resizeObserver.observe(elements.canvasWrap);
+        window.addEventListener("resize", resizeCanvas);
+
+        elements.connectWsBtn.addEventListener("click", connectWs);
+        elements.disconnectWsBtn.addEventListener("click", disconnectWs);
+        elements.previewBtn.addEventListener("click", async () => request("/v1/flowFieldSimulation/preview", "POST", true));
+        elements.startBtn.addEventListener("click", async () => request("/v1/flowFieldSimulation/start", "POST", true));
+        elements.statusBtn.addEventListener("click", async () => request("/v1/flowFieldSimulation/status", "GET", false));
+        elements.stopBtn.addEventListener("click", async () => request("/v1/flowFieldSimulation/stop", "POST", false));
+        elements.playPreviewBtn.addEventListener("click", startPreviewPlayback);
+        elements.pausePreviewBtn.addEventListener("click", stopPreviewPlayback);
+        elements.resetPreviewBtn.addEventListener("click", resetPreviewPlayback);
+        elements.clearLogsBtn.addEventListener("click", clearLogs);
+        elements.payload.addEventListener("input", () => {
+            syncVehicleCountControl();
+            syncVehicleSpeedControl();
+        });
+        elements.vehicleCountControl.addEventListener("input", () => {
+            const nextCount = Number(elements.vehicleCountControl.value);
+            elements.vehicleCountValue.textContent = nextCount.toFixed(0);
+            try {
+                setPayloadField("vehicleCount", nextCount);
+            } catch {
+                elements.vehicleCountValue.textContent = "Invalid JSON";
+            }
+        });
+        elements.vehicleSpeedControl.addEventListener("input", () => {
+            const nextSpeed = Number(elements.vehicleSpeedControl.value);
+            elements.vehicleSpeedValue.textContent = nextSpeed.toFixed(0) + " km/h";
+            try {
+                setPayloadField("vehicleSpeedKmh", nextSpeed);
+            } catch {
+                elements.vehicleSpeedValue.textContent = "Invalid JSON";
+            }
+        });
+        elements.playbackSpeedControl.addEventListener("input", () => {
+            setPlaybackSpeed(Number(elements.playbackSpeedControl.value));
+        });
+
+        elements.toggleVectorsBtn.addEventListener("click", () => {
+            state.showVectors = !state.showVectors;
+            setToggleState(elements.toggleVectorsBtn, state.showVectors);
+        });
+        elements.togglePassengersBtn.addEventListener("click", () => {
+            state.showPassengers = !state.showPassengers;
+            setToggleState(elements.togglePassengersBtn, state.showPassengers);
+        });
+        elements.toggleGridBtn.addEventListener("click", () => {
+            state.showGrid = !state.showGrid;
+            setToggleState(elements.toggleGridBtn, state.showGrid);
+        });
+
+        requestAnimationFrame(drawScene);
+    }
+
+    boot();
+</script>
+</body>
+</html>
